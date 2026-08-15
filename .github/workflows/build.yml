@@ -1,0 +1,388 @@
+name: Build MIUI Cloud Decryptor EXE
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Create application
+        shell: powershell
+        run: |
+          @'
+          import os
+          import tkinter as tk
+          from tkinter import filedialog, messagebox, ttk
+          from pathlib import Path
+
+          from Crypto.Cipher import AES
+          from Crypto.Util import Counter
+          import filetype
+
+          AES_IV = 22696201676385068962342234041843478898
+          DEFAULT_KEY = bytes.fromhex("3082046c30820354a003020102020900")
+
+          class App(tk.Tk):
+              def __init__(self):
+                  super().__init__()
+
+                  self.title("MIUI Cloud Decryptor")
+                  self.geometry("720x520")
+                  self.minsize(650, 450)
+
+                  self.files = []
+
+                  title = tk.Label(
+                      self,
+                      text="MIUI CLOUD DECRYPTOR",
+                      font=("Segoe UI", 20, "bold")
+                  )
+                  title.pack(pady=(20, 4))
+
+                  subtitle = tk.Label(
+                      self,
+                      text="Xiaomi Gallery .LSA / .LSAV Decryptor",
+                      font=("Segoe UI", 10)
+                  )
+                  subtitle.pack(pady=(0, 15))
+
+                  buttons = tk.Frame(self)
+                  buttons.pack(pady=5)
+
+                  tk.Button(
+                      buttons,
+                      text="Add Files",
+                      width=14,
+                      command=self.add_files
+                  ).pack(side="left", padx=5)
+
+                  tk.Button(
+                      buttons,
+                      text="Add Folder",
+                      width=14,
+                      command=self.add_folder
+                  ).pack(side="left", padx=5)
+
+                  tk.Button(
+                      buttons,
+                      text="Clear",
+                      width=14,
+                      command=self.clear
+                  ).pack(side="left", padx=5)
+
+                  self.listbox = tk.Listbox(
+                      self,
+                      selectmode=tk.EXTENDED
+                  )
+                  self.listbox.pack(
+                      fill="both",
+                      expand=True,
+                      padx=20,
+                      pady=15
+                  )
+
+                  output_frame = tk.Frame(self)
+                  output_frame.pack(fill="x", padx=20)
+
+                  tk.Label(
+                      output_frame,
+                      text="Output Folder:"
+                  ).pack(side="left")
+
+                  self.output = tk.Entry(output_frame)
+                  self.output.pack(
+                      side="left",
+                      fill="x",
+                      expand=True,
+                      padx=8
+                  )
+
+                  tk.Button(
+                      output_frame,
+                      text="Browse",
+                      command=self.select_output
+                  ).pack(side="right")
+
+                  key_frame = tk.Frame(self)
+                  key_frame.pack(fill="x", padx=20, pady=10)
+
+                  tk.Label(
+                      key_frame,
+                      text="Key:"
+                  ).pack(side="left")
+
+                  self.key = tk.Entry(key_frame)
+                  self.key.pack(
+                      side="left",
+                      fill="x",
+                      expand=True,
+                      padx=8
+                  )
+
+                  self.key.insert(0, DEFAULT_KEY.hex())
+
+                  self.progress = ttk.Progressbar(
+                      self,
+                      mode="determinate"
+                  )
+                  self.progress.pack(
+                      fill="x",
+                      padx=20,
+                      pady=5
+                  )
+
+                  self.status = tk.Label(
+                      self,
+                      text="Ready"
+                  )
+                  self.status.pack(pady=5)
+
+                  tk.Button(
+                      self,
+                      text="DECRYPT ALL",
+                      font=("Segoe UI", 12, "bold"),
+                      height=2,
+                      command=self.decrypt_all
+                  ).pack(
+                      fill="x",
+                      padx=20,
+                      pady=(5, 20)
+                  )
+
+              def add_files(self):
+                  files = filedialog.askopenfilenames(
+                      title="Select LSA / LSAV files",
+                      filetypes=[
+                          ("MIUI encrypted files", "*.lsa *.lsav"),
+                          ("All files", "*.*")
+                      ]
+                  )
+
+                  for f in files:
+                      if f not in self.files:
+                          self.files.append(f)
+                          self.listbox.insert(tk.END, f)
+
+              def add_folder(self):
+                  folder = filedialog.askdirectory(
+                      title="Select folder containing LSA / LSAV files"
+                  )
+
+                  if not folder:
+                      return
+
+                  for p in Path(folder).iterdir():
+                      if p.is_file() and p.suffix.lower() in (
+                          ".lsa",
+                          ".lsav"
+                      ):
+                          if str(p) not in self.files:
+                              self.files.append(str(p))
+                              self.listbox.insert(tk.END, str(p))
+
+              def clear(self):
+                  self.files.clear()
+                  self.listbox.delete(0, tk.END)
+                  self.progress["value"] = 0
+                  self.status.config(text="Ready")
+
+              def select_output(self):
+                  folder = filedialog.askdirectory(
+                      title="Select output folder"
+                  )
+
+                  if folder:
+                      self.output.delete(0, tk.END)
+                      self.output.insert(0, folder)
+
+              def decrypt_lsa(self, path, key):
+                  with open(path, "rb") as f:
+                      data = f.read()
+
+                  counter = Counter.new(
+                      128,
+                      initial_value=AES_IV
+                  )
+
+                  aes = AES.new(
+                      key,
+                      AES.MODE_CTR,
+                      counter=counter
+                  )
+
+                  return aes.decrypt(data)
+
+              def decrypt_lsav(self, path, key):
+                  with open(path, "rb") as f:
+                      data = f.read()
+
+                  size = len(data)
+
+                  header_size = max(
+                      min(1024, size),
+                      16
+                  )
+
+                  counter = Counter.new(
+                      128,
+                      initial_value=AES_IV
+                  )
+
+                  aes = AES.new(
+                      key,
+                      AES.MODE_CTR,
+                      counter=counter
+                  )
+
+                  return (
+                      aes.decrypt(data[:header_size])
+                      + data[header_size:]
+                  )
+
+              def decrypt_all(self):
+                  if not self.files:
+                      messagebox.showwarning(
+                          "No files",
+                          "Please add .LSA or .LSAV files first."
+                      )
+                      return
+
+                  try:
+                      key = bytes.fromhex(
+                          self.key.get().strip()
+                      )
+
+                      if len(key) != 16:
+                          raise ValueError
+
+                  except Exception:
+                      messagebox.showerror(
+                          "Invalid Key",
+                          "Key must contain exactly 32 hexadecimal characters."
+                      )
+                      return
+
+                  output_folder = self.output.get().strip()
+
+                  if output_folder:
+                      Path(output_folder).mkdir(
+                          parents=True,
+                          exist_ok=True
+                      )
+
+                  self.progress["maximum"] = len(self.files)
+
+                  success = 0
+                  failed = 0
+
+                  for index, filename in enumerate(
+                      self.files,
+                      start=1
+                  ):
+                      try:
+                          path = Path(filename)
+
+                          if path.suffix.lower() == ".lsa":
+                              data = self.decrypt_lsa(
+                                  path,
+                                  key
+                              )
+                          elif path.suffix.lower() == ".lsav":
+                              data = self.decrypt_lsav(
+                                  path,
+                                  key
+                              )
+                          else:
+                              continue
+
+                          detected = filetype.guess(
+                              data[:1024]
+                          )
+
+                          extension = (
+                              detected.extension
+                              if detected
+                              else "unknown"
+                          )
+
+                          destination_dir = (
+                              Path(output_folder)
+                              if output_folder
+                              else path.parent
+                          )
+
+                          destination = (
+                              destination_dir
+                              / f"{path.stem}.{extension}"
+                          )
+
+                          if destination.exists():
+                              n = 1
+
+                              while destination.exists():
+                                  destination = (
+                                      destination_dir
+                                      / f"{path.stem}_{n}.{extension}"
+                                  )
+                                  n += 1
+
+                          with open(destination, "wb") as f:
+                              f.write(data)
+
+                          success += 1
+
+                          self.status.config(
+                              text=f"Decrypted: {path.name}"
+                          )
+
+                          self.update_idletasks()
+
+                      except Exception as e:
+                          failed += 1
+
+                          self.status.config(
+                              text=f"Failed: {Path(filename).name}"
+                          )
+
+                      self.progress["value"] = index
+                      self.update_idletasks()
+
+                  messagebox.showinfo(
+                      "Finished",
+                      f"Decryption completed.\n\n"
+                      f"Success: {success}\n"
+                      f"Failed: {failed}"
+                  )
+
+                  self.status.config(
+                      text=f"Finished — Success: {success}, Failed: {failed}"
+                  )
+
+          if __name__ == "__main__":
+              App().mainloop()
+          '@ | Set-Content app.py -Encoding UTF8
+
+      - name: Install Python packages
+        shell: powershell
+        run: |
+          python -m pip install --upgrade pip
+          pip install pycryptodome filetype pyinstaller
+
+      - name: Build Windows EXE
+        shell: powershell
+        run: |
+          pyinstaller `
+            --clean `
+            --noconfirm `
+            --onefile `
+            --windowed `
+            --name MIUI_Cloud_Decryptor `
+            app.py
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: MIUI_Cloud_Decryptor-Windows
+          path: dist/MIUI_Cloud_Decryptor.exe
