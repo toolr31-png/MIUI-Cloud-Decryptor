@@ -1,4 +1,4 @@
-name: Build MIUI Cloud Decryptor EXE
+name: Build MIUI CLOUD DECRYPTOR EXE
 
 on:
   workflow_dispatch:
@@ -28,7 +28,7 @@ jobs:
               def __init__(self):
                   super().__init__()
 
-                  self.title("MIUI Cloud Decryptor")
+                  self.title("MIUI CLOUD DECRYPTOR")
                   self.geometry("720x520")
                   self.minsize(650, 450)
 
@@ -378,11 +378,11 @@ jobs:
             --noconfirm `
             --onefile `
             --windowed `
-            --name MIUI_Cloud_Decryptor `
+            --name MIUI_CLOUD_DECRYPTOR `
             app.py
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
-          name: MIUI_Cloud_Decryptor-Windows
-          path: dist/MIUI_Cloud_Decryptor.exe
+          name: MIUI_CLOUD_DECRYPTOR-Windows
+          path: dist/MIUI_CLOUD_DECRYPTOR.exe
