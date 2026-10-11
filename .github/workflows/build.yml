@@ -13,6 +13,7 @@ jobs:
         run: |
           @'
           import os
+          import colorsys
           import tkinter as tk
           from tkinter import filedialog, messagebox, ttk
           from pathlib import Path
@@ -29,127 +30,315 @@ jobs:
                   super().__init__()
 
                   self.title("MIUI CLOUD DECRYPTOR")
-                  self.geometry("720x520")
-                  self.minsize(650, 450)
-
+                  self.geometry("820x650")
+                  self.minsize(700, 570)
+                  self.configure(bg="#080b12")
                   self.files = []
+                  self.rgb_phase = 0.0
+                  self._rgb_after_id = None
+                  self.protocol("WM_DELETE_WINDOW", self._close)
 
-                  title = tk.Label(
+                  style = ttk.Style(self)
+                  style.theme_use("clam")
+                  style.configure(
+                      "RGB.Horizontal.TProgressbar",
+                      troughcolor="#0b1220",
+                      background="#45e6ff",
+                      bordercolor="#1c2940",
+                      lightcolor="#45e6ff",
+                      darkcolor="#45e6ff",
+                      thickness=10
+                  )
+
+                  self.canvas = tk.Canvas(
                       self,
+                      bg="#080b12",
+                      highlightthickness=0,
+                      bd=0
+                  )
+                  self.canvas.pack(fill="both", expand=True)
+                  self.shell = tk.Frame(
+                      self.canvas,
+                      bg="#111827",
+                      highlightthickness=1,
+                      highlightbackground="#28334a",
+                      padx=24,
+                      pady=18
+                  )
+                  self.shell_window = self.canvas.create_window(
+                      18, 18, anchor="nw", window=self.shell
+                  )
+                  self.canvas.bind("<Configure>", self._on_canvas_resize)
+                  self.bind("<Configure>", self._on_canvas_resize)
+
+                  header = tk.Frame(self.shell, bg="#111827")
+                  header.pack(fill="x", pady=(0, 16))
+                  brand = tk.Frame(header, bg="#111827")
+                  brand.pack(side="left", fill="x", expand=True)
+                  tk.Label(
+                      brand,
                       text="MIUI CLOUD DECRYPTOR",
-                      font=("Segoe UI", 20, "bold")
+                      font=("Segoe UI", 22, "bold"),
+                      bg="#111827",
+                      fg="#f3f7ff"
+                  ).pack(anchor="w")
+                  tk.Label(
+                      brand,
+                      text="Xiaomi Gallery  •  LSA / LSAV",
+                      font=("Segoe UI", 10),
+                      bg="#111827",
+                      fg="#8ea3c3"
+                  ).pack(anchor="w", pady=(3, 0))
+                  tk.Label(
+                      header,
+                      text="RGB  /  GLASS",
+                      font=("Segoe UI", 9, "bold"),
+                      bg="#17243a",
+                      fg="#73e7ff",
+                      padx=12,
+                      pady=7
+                  ).pack(side="right", anchor="n", pady=3)
+
+                  files_card = tk.Frame(
+                      self.shell,
+                      bg="#151f31",
+                      highlightthickness=1,
+                      highlightbackground="#293954",
+                      padx=14,
+                      pady=12
                   )
-                  title.pack(pady=(20, 4))
-
-                  subtitle = tk.Label(
-                      self,
-                      text="Xiaomi Gallery .LSA / .LSAV Decryptor",
-                      font=("Segoe UI", 10)
+                  files_card.pack(fill="both", expand=True, pady=(0, 12))
+                  file_heading = tk.Frame(files_card, bg="#151f31")
+                  file_heading.pack(fill="x", pady=(0, 9))
+                  tk.Label(
+                      file_heading,
+                      text="ENCRYPTED FILES",
+                      font=("Segoe UI", 9, "bold"),
+                      bg="#151f31",
+                      fg="#a9bbd8"
+                  ).pack(side="left")
+                  self.file_count = tk.Label(
+                      file_heading,
+                      text="0 FILES",
+                      font=("Segoe UI", 9, "bold"),
+                      bg="#151f31",
+                      fg="#60dff5"
                   )
-                  subtitle.pack(pady=(0, 15))
-
-                  buttons = tk.Frame(self)
-                  buttons.pack(pady=5)
-
-                  tk.Button(
-                      buttons,
-                      text="Add Files",
-                      width=14,
-                      command=self.add_files
-                  ).pack(side="left", padx=5)
-
-                  tk.Button(
-                      buttons,
-                      text="Add Folder",
-                      width=14,
-                      command=self.add_folder
-                  ).pack(side="left", padx=5)
-
-                  tk.Button(
-                      buttons,
-                      text="Clear",
-                      width=14,
-                      command=self.clear
-                  ).pack(side="left", padx=5)
+                  self.file_count.pack(side="right")
 
                   self.listbox = tk.Listbox(
-                      self,
-                      selectmode=tk.EXTENDED
+                      files_card,
+                      selectmode=tk.EXTENDED,
+                      bg="#0b1220",
+                      fg="#d9e6fa",
+                      selectbackground="#244a70",
+                      selectforeground="#ffffff",
+                      relief="flat",
+                      bd=0,
+                      highlightthickness=1,
+                      highlightbackground="#273650",
+                      highlightcolor="#45c9ed",
+                      font=("Segoe UI", 10),
+                      activestyle="none"
                   )
-                  self.listbox.pack(
-                      fill="both",
-                      expand=True,
-                      padx=20,
-                      pady=15
-                  )
+                  self.listbox.pack(fill="both", expand=True)
 
-                  output_frame = tk.Frame(self)
-                  output_frame.pack(fill="x", padx=20)
-
-                  tk.Label(
-                      output_frame,
-                      text="Output Folder:"
+                  file_buttons = tk.Frame(self.shell, bg="#111827")
+                  file_buttons.pack(fill="x", pady=(0, 13))
+                  self.make_button(
+                      file_buttons, "＋  Add Files", self.add_files
+                  ).pack(side="left", padx=(0, 8))
+                  self.make_button(
+                      file_buttons, "▣  Add Folder", self.add_folder
+                  ).pack(side="left", padx=(0, 8))
+                  self.make_button(
+                      file_buttons, "Clear", self.clear, muted=True
                   ).pack(side="left")
 
-                  self.output = tk.Entry(output_frame)
-                  self.output.pack(
-                      side="left",
-                      fill="x",
-                      expand=True,
-                      padx=8
+                  settings_card = tk.Frame(
+                      self.shell,
+                      bg="#151f31",
+                      highlightthickness=1,
+                      highlightbackground="#293954",
+                      padx=14,
+                      pady=12
                   )
-
-                  tk.Button(
-                      output_frame,
-                      text="Browse",
-                      command=self.select_output
-                  ).pack(side="right")
-
-                  key_frame = tk.Frame(self)
-                  key_frame.pack(fill="x", padx=20, pady=10)
+                  settings_card.pack(fill="x", pady=(0, 12))
+                  settings_card.columnconfigure(1, weight=1)
 
                   tk.Label(
-                      key_frame,
-                      text="Key:"
-                  ).pack(side="left")
-
-                  self.key = tk.Entry(key_frame)
-                  self.key.pack(
-                      side="left",
-                      fill="x",
-                      expand=True,
-                      padx=8
+                      settings_card,
+                      text="OUTPUT FOLDER",
+                      font=("Segoe UI", 9, "bold"),
+                      bg="#151f31",
+                      fg="#a9bbd8"
+                  ).grid(row=0, column=0, sticky="w", padx=(0, 12), pady=(0, 9))
+                  self.output = tk.Entry(
+                      settings_card,
+                      bg="#0b1220",
+                      fg="#d9e6fa",
+                      insertbackground="#ffffff",
+                      relief="flat",
+                      bd=0,
+                      highlightthickness=1,
+                      highlightbackground="#273650",
+                      highlightcolor="#45c9ed",
+                      font=("Segoe UI", 10)
                   )
+                  self.output.grid(row=0, column=1, sticky="ew", ipady=7, pady=(0, 9))
+                  self.make_button(
+                      settings_card, "Browse", self.select_output
+                  ).grid(row=0, column=2, padx=(10, 0), pady=(0, 9))
 
+                  tk.Label(
+                      settings_card,
+                      text="DECRYPTION KEY",
+                      font=("Segoe UI", 9, "bold"),
+                      bg="#151f31",
+                      fg="#a9bbd8"
+                  ).grid(row=1, column=0, sticky="w", padx=(0, 12))
+                  self.key = tk.Entry(
+                      settings_card,
+                      bg="#0b1220",
+                      fg="#d9e6fa",
+                      insertbackground="#ffffff",
+                      relief="flat",
+                      bd=0,
+                      highlightthickness=1,
+                      highlightbackground="#273650",
+                      highlightcolor="#45c9ed",
+                      font=("Consolas", 10)
+                  )
+                  self.key.grid(row=1, column=1, columnspan=2, sticky="ew", ipady=7)
                   self.key.insert(0, DEFAULT_KEY.hex())
 
                   self.progress = ttk.Progressbar(
-                      self,
-                      mode="determinate"
+                      self.shell,
+                      mode="determinate",
+                      style="RGB.Horizontal.TProgressbar"
                   )
-                  self.progress.pack(
-                      fill="x",
-                      padx=20,
-                      pady=5
-                  )
-
+                  self.progress.pack(fill="x", pady=(1, 9))
                   self.status = tk.Label(
-                      self,
-                      text="Ready"
+                      self.shell,
+                      text="Ready  •  Add LSA / LSAV files to begin",
+                      anchor="w",
+                      bg="#111827",
+                      fg="#8ea3c3",
+                      font=("Segoe UI", 9)
                   )
-                  self.status.pack(pady=5)
+                  self.status.pack(fill="x", pady=(0, 8))
+                  self.make_button(
+                      self.shell,
+                      "DECRYPT ALL",
+                      self.decrypt_all,
+                      primary=True
+                  ).pack(fill="x", ipady=5)
 
-                  tk.Button(
-                      self,
-                      text="DECRYPT ALL",
-                      font=("Segoe UI", 12, "bold"),
-                      height=2,
-                      command=self.decrypt_all
-                  ).pack(
-                      fill="x",
-                      padx=20,
-                      pady=(5, 20)
+                  self.after(80, self._animate_rgb_border)
+
+              def make_button(self, parent, text, command, muted=False, primary=False):
+                  if primary:
+                      background, foreground = "#155b81", "#ffffff"
+                      active_background = "#207aa4"
+                  elif muted:
+                      background, foreground = "#202a3b", "#b4c3d9"
+                      active_background = "#303d52"
+                  else:
+                      background, foreground = "#1a2c43", "#d8eaff"
+                      active_background = "#244663"
+
+                  return tk.Button(
+                      parent,
+                      text=text,
+                      command=command,
+                      bg=background,
+                      fg=foreground,
+                      activebackground=active_background,
+                      activeforeground="#ffffff",
+                      relief="flat",
+                      bd=0,
+                      padx=15,
+                      pady=8,
+                      cursor="hand2",
+                      font=("Segoe UI", 9, "bold")
                   )
+
+              def _on_canvas_resize(self, event):
+                  if event.widget is not self.canvas:
+                      return
+
+                  width = max(200, event.width - 36)
+                  height = max(200, event.height - 36)
+                  self.canvas.coords(self.shell_window, 18, 18)
+                  self.canvas.itemconfigure(
+                      self.shell_window, width=width, height=height
+                  )
+                  self.canvas.delete("background")
+                  top = (14, 20, 35)
+                  bottom = (7, 10, 17)
+                  for row in range(48):
+                      blend = row / 47
+                      color = "#" + "".join(
+                          f"{round(top[i] * (1 - blend) + bottom[i] * blend):02x}"
+                          for i in range(3)
+                      )
+                      y = round(event.height * row / 48)
+                      self.canvas.create_line(
+                          0, y, event.width, y,
+                          fill=color,
+                          tags="background"
+                      )
+                  self.canvas.tag_lower("background")
+
+              def _animate_rgb_border(self):
+                  if not self.winfo_exists():
+                      return
+
+                  width = self.canvas.winfo_width()
+                  height = self.canvas.winfo_height()
+                  if width > 50 and height > 50:
+                      left, top, right, bottom = 7, 7, width - 8, height - 8
+                      edge = max(12, min(32, (right - left + bottom - top) // 30))
+                      points = []
+                      points.extend(
+                          (left + (right - left) * i / edge, top)
+                          for i in range(edge)
+                      )
+                      points.extend(
+                          (right, top + (bottom - top) * i / edge)
+                          for i in range(edge)
+                      )
+                      points.extend(
+                          (right - (right - left) * i / edge, bottom)
+                          for i in range(edge)
+                      )
+                      points.extend(
+                          (left, bottom - (bottom - top) * i / edge)
+                          for i in range(edge)
+                      )
+                      points.append(points[0])
+                      self.canvas.delete("rgb_border")
+                      segment_count = len(points) - 1
+                      for index in range(segment_count):
+                          hue = (index / segment_count + self.rgb_phase) % 1.0
+                          red, green, blue = colorsys.hsv_to_rgb(hue, 0.78, 1.0)
+                          color = f"#{round(red * 255):02x}{round(green * 255):02x}{round(blue * 255):02x}"
+                          self.canvas.create_line(
+                              *points[index],
+                              *points[index + 1],
+                              fill=color,
+                              width=2,
+                              tags="rgb_border"
+                          )
+                      self.canvas.tag_raise("rgb_border")
+                      self.rgb_phase = (self.rgb_phase + 0.012) % 1.0
+
+                  self._rgb_after_id = self.after(55, self._animate_rgb_border)
+
+              def _close(self):
+                  if self._rgb_after_id is not None:
+                      self.after_cancel(self._rgb_after_id)
+                  self.destroy()
 
               def add_files(self):
                   files = filedialog.askopenfilenames(
@@ -164,6 +353,7 @@ jobs:
                       if f not in self.files:
                           self.files.append(f)
                           self.listbox.insert(tk.END, f)
+                  self.file_count.config(text=f"{len(self.files)} FILES")
 
               def add_folder(self):
                   folder = filedialog.askdirectory(
@@ -181,10 +371,12 @@ jobs:
                           if str(p) not in self.files:
                               self.files.append(str(p))
                               self.listbox.insert(tk.END, str(p))
+                  self.file_count.config(text=f"{len(self.files)} FILES")
 
               def clear(self):
                   self.files.clear()
                   self.listbox.delete(0, tk.END)
+                  self.file_count.config(text="0 FILES")
                   self.progress["value"] = 0
                   self.status.config(text="Ready")
 
